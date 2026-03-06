@@ -1,23 +1,33 @@
 {
   "objects": [
     {
-      "type": "text",
+      "type": "image",
       "id": "obj-1",
-      "x": 45,
-      "y": 36,
-      "width": 211,
-      "height": 98,
-      "fontSize": 14,
-      "content": "The world ends as the world knows it. This is the beginning of the new world order. "
+      "x": 474,
+      "y": 26,
+      "width": 627,
+      "height": 308,
+      "src": "photo.png"
     },
     {
-      "type": "image",
+      "type": "text",
       "id": "obj-2",
-      "x": 296,
-      "y": 32,
-      "width": 379,
-      "height": 235,
-      "src": "photo.png"
+      "x": 212,
+      "y": 59,
+      "width": 222,
+      "height": 80,
+      "fontSize": 14,
+      "content": "How do the mountains move you senora ?"
+    },
+    {
+      "type": "text",
+      "id": "obj-3",
+      "x": 1128,
+      "y": 233,
+      "width": 220,
+      "height": 80,
+      "fontSize": 14,
+      "content": "How does the stream flow so seamlessly ?"
     }
   ]
 }
