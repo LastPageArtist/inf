@@ -1,0 +1,49 @@
+{
+  "objects": [
+    {
+      "type": "text",
+      "id": "text-1",
+      "x": 120,
+      "y": 80,
+      "width": 220,
+      "fontSize": 14,
+      "content": "Hello, infinite canvas.\nDouble-click to edit."
+    },
+    {
+      "type": "text",
+      "id": "text-2",
+      "x": 500,
+      "y": 200,
+      "width": 180,
+      "fontSize": 22,
+      "content": "A bigger heading sits here."
+    },
+    {
+      "type": "text",
+      "id": "text-3",
+      "x": 900,
+      "y": 400,
+      "width": 260,
+      "fontSize": 12,
+      "content": "Small note tucked away in the corner of the canvas."
+    },
+    {
+      "type": "image",
+      "id": "img-1",
+      "x": 300,
+      "y": 350,
+      "width": 320,
+      "height": 220,
+      "src": "image.jpg"
+    },
+    {
+      "type": "image",
+      "id": "img-2",
+      "x": 720,
+      "y": 80,
+      "width": 200,
+      "height": 200,
+      "src": "photo.png"
+    }
+  ]
+}
