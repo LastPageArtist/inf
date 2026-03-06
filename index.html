@@ -71,6 +71,7 @@
     color: #444; transition: background 0.1s;
   }
   .z-btn:hover { background: #e8e8e4; }
+  .z-btn svg { width: 13px; height: 13px; }
   #zoom-label {
     min-width: 42px; text-align: center;
     font-family: 'Instrument Serif', serif;
@@ -85,7 +86,9 @@
   <button class="z-btn" id="btn-out">−</button>
   <span id="zoom-label">100%</span>
   <button class="z-btn" id="btn-in">+</button>
-  <button class="z-btn" id="btn-reset" style="font-size:11px;">⌂</button>
+  <button class="z-btn" id="btn-fit" title="Fit all objects in view">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/><rect x="5" y="5" width="6" height="6" rx="0.5"/></svg>
+  </button>
 </div>
 <script>
 let tx = 0, ty = 0, scale = 1;
@@ -93,6 +96,9 @@ const MIN = 0.04, MAX = 8, STEP = 0.15, BASE = 28;
 const world = document.getElementById('world');
 const label = document.getElementById('zoom-label');
 const grid  = document.getElementById('grid-bg');
+
+// Track all rendered object bounding boxes for fit
+let allObjects = [];
 
 function apply() {
   world.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
@@ -133,15 +139,36 @@ document.addEventListener('wheel', e => {
   if (e.deltaMode === 2) dy *= 300;
   zoomTo(scale * Math.pow(1 - STEP, dy / 100), e.clientX, e.clientY);
 }, { passive: false });
-document.getElementById('btn-in').onclick    = () => zoomTo(scale*(1+STEP), innerWidth/2, innerHeight/2);
-document.getElementById('btn-out').onclick   = () => zoomTo(scale*(1-STEP), innerWidth/2, innerHeight/2);
-document.getElementById('btn-reset').onclick = () => { tx=0; ty=0; scale=1; apply(); };
+document.getElementById('btn-in').onclick  = () => zoomTo(scale*(1+STEP), innerWidth/2, innerHeight/2);
+document.getElementById('btn-out').onclick = () => zoomTo(scale*(1-STEP), innerWidth/2, innerHeight/2);
+
+// Fit all objects into view (with padding)
+document.getElementById('btn-fit').onclick = () => {
+  if (!allObjects.length) { tx=0; ty=0; scale=1; apply(); return; }
+  const PAD = 60;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  allObjects.forEach(o => {
+    minX = Math.min(minX, o.x);
+    minY = Math.min(minY, o.y);
+    maxX = Math.max(maxX, o.x + (o.width  || 200));
+    maxY = Math.max(maxY, o.y + (o.height || 100));
+  });
+  const cw = innerWidth, ch = innerHeight;
+  const fw = cw - PAD*2, fh = ch - PAD*2;
+  const contentW = maxX - minX, contentH = maxY - minY;
+  const ns = Math.min(MAX, Math.max(MIN, Math.min(fw / contentW, fh / contentH)));
+  tx = PAD + (fw - contentW * ns) / 2 - minX * ns;
+  ty = PAD + (fh - contentH * ns) / 2 - minY * ns;
+  scale = ns;
+  apply();
+};
 
 // Render
 function renderText(o) {
   const el = document.createElement('div');
   el.className = 'c-text';
   el.style.cssText = `left:${o.x}px;top:${o.y}px;width:${o.width||200}px;font-size:${o.fontSize||14}px`;
+  if (o.height) el.style.height = o.height + 'px';
   el.textContent = o.content || '';
   world.appendChild(el);
 }
@@ -161,12 +188,20 @@ function renderImage(o) {
   };
   world.appendChild(img);
 }
+
 async function load() {
   try {
-    const r = await fetch('objects.json');
+    // Cache-bust with timestamp so GitHub Pages always serves the fresh file
+    const r = await fetch('objects.json?v=' + Date.now());
     if (!r.ok) throw 0;
     const { objects = [] } = await r.json();
-    objects.forEach(o => { if(o.type==='text') renderText(o); else if(o.type==='image') renderImage(o); });
+    allObjects = objects;
+    objects.forEach(o => {
+      if (o.type === 'text')  renderText(o);
+      else if (o.type === 'image') renderImage(o);
+    });
+    // Auto-fit on first load
+    document.getElementById('btn-fit').click();
   } catch { console.warn('No objects.json'); }
 }
 apply(); load();
