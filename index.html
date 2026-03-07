@@ -252,9 +252,9 @@ body.dev-mobile #zoom-label{display:none;}
 const T = {
   blankPause:         1.8,   // blank screen before sentence appears
   sentenceFadeIn:     0.9,   // duration: fade in full sentence
-  sentenceHold:       2.4,   // hold full sentence
+  sentenceHold:       3.4,   // hold full sentence
   wordsFadeOut:       0.7,   // duration: non-Ruleman words fade out
-  rulemanHold:        2.0,   // hold just "The Ruleman"
+  rulemanHold:        2.5,   // hold just "The Ruleman"
   rulemanFadeOut:     0.9,   // duration: "The Ruleman" fades out
   contentFadeIn:      1.4,   // duration: main UI fades in
   hintSoundShow:      1.2,   // delay after UI appears before sound hint
@@ -396,10 +396,6 @@ let musicOn=false,musicUnlocked=false;
 function setMusicUI(on){musicOn=on;mutedIco.style.display=on?'none':'';playingIco.style.display=on?'':'none';}
 function playMusic(){music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{setMusicUI(false);});}
 function pauseMusic(){music.pause();setMusicUI(false);}
-function tryAutoplay(){if(musicUnlocked||musicOn)return;music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{});}
-document.addEventListener('click',tryAutoplay,{once:true});
-document.addEventListener('keydown',tryAutoplay,{once:true});
-document.addEventListener('touchstart',tryAutoplay,{once:true,passive:true});
 document.getElementById('btn-sound').onclick=()=>{if(musicOn){pauseMusic();}else{playMusic();}};
 
 // ══════════════════════════════════════════════
