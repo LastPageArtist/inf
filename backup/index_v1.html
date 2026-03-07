@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Cavonasa</title>
+<style>
+:root {
+  --bg:#f5f2ec; --surface:#ede9e0; --text:#2c2820; --text-dim:#8a8278;
+  --border:rgba(44,40,32,0.18); --hud-bg:rgba(245,242,236,0.93); --hud-hov:#e2ddd4;
+  --f:'Times New Roman',Times,serif;
+  --brand-fs:17px; --brand-top:20px; --brand-left:22px;
+  --tb-h:32px; --tb-pad:4px; --tb-gap:3px; --tb-r:10px;
+  --tb-fs:11px; --tb-icon:13px; --tb-bottom:18px;
+}
+[data-theme="dark"]{
+  --bg:#1c1b18; --surface:#27261f; --text:#e0dbd0; --text-dim:#7a7870;
+  --border:rgba(224,219,208,0.18); --hud-bg:rgba(28,27,24,0.93); --hud-hov:#332f28;
+}
+body.dev-mobile { --brand-fs:13px; --brand-top:14px; --brand-left:14px; --tb-h:40px; --tb-gap:2px; --tb-r:14px; --tb-fs:12px; --tb-icon:15px; --tb-bottom:22px; }
+body.dev-tablet { --brand-fs:15px; --tb-h:36px; --tb-gap:3px; --tb-r:11px; --tb-fs:12px; --tb-icon:14px; --tb-bottom:20px; }
+body.dev-tv     { --brand-fs:24px; --brand-top:28px; --brand-left:30px; --tb-h:44px; --tb-pad:8px; --tb-gap:6px; --tb-r:13px; --tb-fs:14px; --tb-icon:17px; --tb-bottom:28px; }
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--f);touch-action:none;user-select:none;-webkit-user-select:none;transition:background .3s;}
+body:not(.dev-mobile):not(.dev-tablet){cursor:grab;}
+body:not(.dev-mobile):not(.dev-tablet).panning{cursor:grabbing;}
+
+#grid-bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
+#world  {position:absolute;top:0;left:0;transform-origin:0 0;z-index:1;will-change:transform;}
+
+.c-text{
+  position:absolute;outline:1px solid rgba(44,40,32,0.28);border:none;
+  padding:9px 12px;font-family:'Times New Roman',Times,serif;color:var(--text);
+  font-size:16px;font-weight:400;letter-spacing:.01em;line-height:1.6;
+  word-break:break-word;pointer-events:none;background:transparent;overflow:hidden;transition:color .3s;
+}
+[data-theme="dark"] .c-text{outline-color:rgba(224,219,208,0.36);}
+.c-text b,.c-text strong{font-weight:700;} .c-text i,.c-text em{font-style:italic;} .c-text u{text-decoration:underline;}
+
+.c-image{position:absolute;display:block;object-fit:cover;pointer-events:none;}
+.img-missing{position:absolute;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);background:rgba(0,0,0,.02);color:var(--text-dim);font-size:12px;font-family:var(--f);pointer-events:none;}
+
+/* ── Brand + credit stacked top-left ── */
+#brand-wrap{
+  position:fixed;
+  top:var(--brand-top);
+  left:var(--brand-left);
+  z-index:100;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  pointer-events:none;
+}
+#brand{
+  font-family:'Times New Roman',Times,serif;
+  font-size:var(--brand-fs);
+  font-weight:700;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  color:var(--text);
+  opacity:.65;
+  transition:color .3s,font-size .2s;
+  line-height:1;
+}
+/* Credit sits below the brand, slightly smaller, same style */
+#credit{
+  font-family:'Times New Roman',Times,serif;
+  font-size:calc(var(--brand-fs) * 0.82);
+  font-weight:700;
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  color:var(--text);
+  opacity:.65;
+  text-decoration:none;
+  pointer-events:all;
+  transition:color .3s,font-size .2s,opacity .2s;
+  line-height:1;
+}
+#credit:hover{opacity:0.9;}
+
+/* ── Toolbar ── */
+#toolbar{
+  position:fixed;bottom:var(--tb-bottom);left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;align-items:center;gap:var(--tb-gap);
+  padding:var(--tb-pad) calc(var(--tb-pad) + 2px);
+  background:var(--hud-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid var(--border);border-radius:var(--tb-r);
+  box-shadow:0 2px 18px rgba(0,0,0,.09);transition:background .3s,border-color .3s;
+}
+.tb-sep{width:1px;height:14px;background:var(--border);margin:0 1px;flex-shrink:0;}
+.tb-btn{
+  height:var(--tb-h);min-width:var(--tb-h);padding:0 7px;
+  border:none;border-radius:calc(var(--tb-r) - 3px);
+  background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:3px;
+  color:var(--text);font-family:var(--f);font-size:var(--tb-fs);letter-spacing:.02em;
+  transition:background .12s,color .3s;-webkit-tap-highlight-color:transparent;
+}
+.tb-btn:hover,.tb-btn:active{background:var(--hud-hov);}
+.tb-btn svg{width:var(--tb-icon);height:var(--tb-icon);flex-shrink:0;}
+#zoom-label{font-family:var(--f);font-size:var(--tb-fs);letter-spacing:.04em;color:var(--text-dim);min-width:34px;text-align:center;transition:color .3s;pointer-events:none;}
+body.dev-mobile #zoom-label{display:none;}
+</style>
+</head>
+<body>
+<div id="grid-bg"></div>
+<div id="world"></div>
+
+<!-- Brand + credit stacked in top-left -->
+<div id="brand-wrap">
+  <div id="brand">Cavonasa</div>
+  <a id="credit" href="https://example.com" target="_blank" rel="noopener">@example</a>
+</div>
+
+<div id="toolbar">
+  <button class="tb-btn" id="btn-out" title="Zoom out">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
+  </button>
+  <span id="zoom-label">100%</span>
+  <button class="tb-btn" id="btn-in" title="Zoom in">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="7" y1="4" x2="7" y2="10"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-fit" title="Fit all content">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/><rect x="5" y="5" width="6" height="6" rx="0.5"/></svg>
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-sound" title="Play music">
+    <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    <svg id="icon-playing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+  </button>
+  <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-theme" title="Toggle theme">
+    <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </button>
+</div>
+
+<audio id="bg-music" src="Hill_of_the_king.mp3" loop preload="auto"></audio>
+
+<script>
+// ── Device detection ──
+function detectDevice(){
+  const w=window.innerWidth,ua=navigator.userAgent,touch=navigator.maxTouchPoints>0;
+  const isTV=/SmartTV|SMART-TV|Tizen|WebOS|HbbTV|BRAVIA|PhilipsTV/i.test(ua);
+  const cls=isTV||(w>=1920&&!touch)?'dev-tv':touch&&w<=600?'dev-mobile':touch&&w<=1200?'dev-tablet':'dev-desktop';
+  document.body.classList.remove('dev-mobile','dev-tablet','dev-desktop','dev-tv');
+  document.body.classList.add(cls);
+}
+detectDevice(); window.addEventListener('resize',detectDevice);
+
+const MIN=0.04,MAX=8,STEP=0.15,BASE=28;
+let tx=0,ty=0,scale=1,dark=false,allObjects=[];
+let textEls=[];
+
+const html=document.documentElement,world=document.getElementById('world'),
+      label=document.getElementById('zoom-label'),grid=document.getElementById('grid-bg'),
+      moonIco=document.getElementById('icon-moon'),sunIco=document.getElementById('icon-sun');
+
+// ── Theme ──
+function lineColorAuto(){ return dark?'rgba(224,219,208,0.82)':'rgba(44,40,32,0.75)'; }
+
+function applyTheme(){
+  html.setAttribute('data-theme',dark?'dark':'light');
+  moonIco.style.display=dark?'none':''; sunIco.style.display=dark?'':'none';
+  applyTransform(); // applyTransform calls redrawLines with updated theme colors
+}
+document.getElementById('btn-theme').onclick=()=>{
+  dark=!dark; applyTheme();
+  try{localStorage.setItem('cv-theme',dark?'dark':'light');}catch{}
+};
+try{ dark=localStorage.getItem('cv-theme')==='dark'; }catch{ dark=false; }
+
+// ── Transform ──
+function applyTransform(){
+  world.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;
+  label.textContent=Math.round(scale*100)+'%';
+  const sz=BASE*scale,op=scale<0.1?0:Math.min(0.28,0.08+scale*0.15);
+  const ox=((tx%sz)+sz)%sz,oy=((ty%sz)+sz)%sz;
+  const dc=dark?`rgba(224,219,208,${op.toFixed(3)})`:`rgba(44,40,32,${op.toFixed(3)})`;
+  grid.style.backgroundImage=`radial-gradient(circle,${dc} 1.2px,transparent 1.2px)`;
+  grid.style.backgroundSize=`${sz}px ${sz}px`;
+  grid.style.backgroundPosition=`${ox}px ${oy}px`;
+  const ow=(1/scale).toFixed(6)+'px',oc=dark?'rgba(224,219,208,0.45)':'rgba(44,40,32,0.32)';
+  textEls.forEach(el=>{el.style.outline=`${ow} solid ${oc}`;});
+  redrawLines();
+}
+
+// ── Mouse pan ──
+let pan=false,msx,msy,stx,sty;
+document.addEventListener('mousedown',e=>{
+  if(e.target.closest('#toolbar')||e.target.closest('#brand-wrap'))return;
+  pan=true;msx=e.clientX;msy=e.clientY;stx=tx;sty=ty;document.body.classList.add('panning');
+});
+document.addEventListener('mousemove',e=>{if(!pan)return;tx=stx+e.clientX-msx;ty=sty+e.clientY-msy;applyTransform();});
+document.addEventListener('mouseup',()=>{pan=false;document.body.classList.remove('panning');});
+
+// ── Touch pan + pinch ──
+let touches={},lastMid=null,lastSpread=0;
+function midPt(t){const p=Object.values(t);return{x:p.reduce((s,v)=>s+v.x,0)/p.length,y:p.reduce((s,v)=>s+v.y,0)/p.length};}
+function sprd(t){const p=Object.values(t);return p.length<2?0:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);}
+document.addEventListener('touchstart',e=>{
+  if(e.target.closest('#toolbar')||e.target.closest('#brand-wrap'))return;
+  e.preventDefault();
+  [...e.changedTouches].forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
+  lastMid=midPt(touches);lastSpread=sprd(touches);
+},{passive:false});
+document.addEventListener('touchmove',e=>{
+  if(e.target.closest('#toolbar'))return; e.preventDefault();
+  [...e.changedTouches].forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
+  const m=midPt(touches),s=sprd(touches);
+  if(Object.keys(touches).length>=2&&lastSpread>0){const f=s/lastSpread,ns=Math.min(MAX,Math.max(MIN,scale*f));tx=m.x-(m.x-tx)*(ns/scale);ty=m.y-(m.y-ty)*(ns/scale);scale=ns;}
+  if(lastMid){tx+=m.x-lastMid.x;ty+=m.y-lastMid.y;}
+  lastMid=m;lastSpread=s;applyTransform();
+},{passive:false});
+document.addEventListener('touchend',e=>{
+  [...e.changedTouches].forEach(t=>{delete touches[t.identifier];});
+  lastMid=Object.keys(touches).length?midPt(touches):null;lastSpread=sprd(touches);
+},{passive:false});
+
+// ── Wheel zoom ──
+document.addEventListener('wheel',e=>{
+  e.preventDefault();
+  let dy=e.deltaY;if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=300;
+  zoomTo(scale*Math.pow(1-STEP,dy/100),e.clientX,e.clientY);
+},{passive:false});
+function zoomTo(ns,cx,cy){ns=Math.min(MAX,Math.max(MIN,ns));tx=cx-(cx-tx)*(ns/scale);ty=cy-(cy-ty)*(ns/scale);scale=ns;applyTransform();}
+document.getElementById('btn-in').onclick=()=>zoomTo(scale*(1+STEP),innerWidth/2,innerHeight/2);
+document.getElementById('btn-out').onclick=()=>zoomTo(scale*(1-STEP),innerWidth/2,innerHeight/2);
+
+// ── Fit ──
+function fitAll(objs){
+  const all=objs||allObjects;
+  const boxes=all.filter(o=>o.type!=='start'&&o.type!=='line');
+  const lns=all.filter(o=>o.type==='line');
+  if(!boxes.length&&!lns.length){tx=0;ty=0;scale=1;applyTransform();return;}
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  boxes.forEach(o=>{x0=Math.min(x0,o.x);y0=Math.min(y0,o.y);x1=Math.max(x1,o.x+(o.width||200));y1=Math.max(y1,o.y+(o.height||100));});
+  lns.forEach(o=>{x0=Math.min(x0,o.x1,o.x2);y0=Math.min(y0,o.y1,o.y2);x1=Math.max(x1,o.x1,o.x2);y1=Math.max(y1,o.y1,o.y2);});
+  const cw=x1-x0,ch=y1-y0,PAD=Math.max(48,Math.min(160,Math.max(cw,ch)*0.08));
+  const vw=innerWidth-PAD*2,vh=innerHeight-PAD*2,ns=Math.min(MAX,Math.max(MIN,Math.min(vw/cw,vh/ch)));
+  tx=PAD+(vw-cw*ns)/2-x0*ns;ty=PAD+(vh-ch*ns)/2-y0*ns;scale=ns;applyTransform();
+}
+document.getElementById('btn-fit').onclick=()=>fitAll();
+
+// ── Music ──
+const music=document.getElementById('bg-music');
+const mutedIco=document.getElementById('icon-muted'),playingIco=document.getElementById('icon-playing');
+let musicOn=false,musicUnlocked=false;
+
+function setMusicUI(on){
+  musicOn=on;
+  mutedIco.style.display=on?'none':''; playingIco.style.display=on?'':'none';
+}
+function playMusic(){
+  music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{setMusicUI(false);});
+}
+function pauseMusic(){music.pause();setMusicUI(false);}
+
+function tryAutoplay(){
+  if(musicUnlocked||musicOn)return;
+  music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{});
+}
+document.addEventListener('click',tryAutoplay,{once:true});
+document.addEventListener('keydown',tryAutoplay,{once:true});
+document.addEventListener('touchstart',tryAutoplay,{once:true,passive:true});
+
+document.getElementById('btn-sound').onclick=()=>{
+  if(musicOn){pauseMusic();}else{playMusic();}
+};
+
+// ── Render ──
+function renderText(o){
+  const el=document.createElement('div');el.className='c-text';
+  el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.width||200)+'px';
+  el.style.fontSize=(o.fontSize||16)+'px';
+  if(o.height)el.style.height=o.height+'px';
+  if(o.color)el.style.color=o.color;
+  el.innerHTML=o.content||'';
+  world.appendChild(el);textEls.push(el);
+}
+function renderImage(o){
+  const img=document.createElement('img');img.className='c-image';img.draggable=false;
+  img.style.left=o.x+'px';img.style.top=o.y+'px';img.style.width=(o.width||200)+'px';img.style.height=(o.height||200)+'px';
+  img.src='imgs/'+o.src;
+  img.onerror=()=>{img.remove();const ph=document.createElement('div');ph.className='img-missing';ph.style.cssText=`left:${o.x}px;top:${o.y}px;width:${o.width||200}px;height:${o.height||200}px`;ph.textContent=o.src;world.appendChild(ph);};
+  world.appendChild(img);
+}
+
+// ── Line rendering via full-screen fixed SVG overlay ──
+// Lines stored as world-coords; redrawn in screen-coords on every transform.
+const NS_SVG='http://www.w3.org/2000/svg';
+let lineObjects=[];
+
+const lineSvg=(()=>{
+  const s=document.createElementNS(NS_SVG,'svg');
+  s.id='viewer-line-svg';
+  s.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible;';
+  document.body.appendChild(s);
+  return s;
+})();
+
+function isAutoColor(c){
+  return !c||c==='null'||c===null||
+    (typeof c==='string'&&(c.includes('rgba(44,40,32')||c.includes('rgba(224,219,208')));
+}
+
+function w2s(wx,wy){ return{x:wx*scale+tx, y:wy*scale+ty}; }
+
+function redrawLines(){
+  while(lineSvg.firstChild)lineSvg.removeChild(lineSvg.firstChild);
+  lineObjects.forEach(o=>{
+    const a=w2s(o.x1,o.y1), b=w2s(o.x2,o.y2);
+    const ln=document.createElementNS(NS_SVG,'line');
+    ln.setAttribute('x1',a.x); ln.setAttribute('y1',a.y);
+    ln.setAttribute('x2',b.x); ln.setAttribute('y2',b.y);
+    ln.setAttribute('stroke', isAutoColor(o.color)?lineColorAuto():o.color);
+    ln.setAttribute('stroke-width', o.width||2);
+    ln.setAttribute('stroke-linecap','round');
+    lineSvg.appendChild(ln);
+  });
+}
+
+function renderLine(o){ lineObjects.push(o); }
+
+// ── Navigate to start node ──
+function navigateToStart(objs){
+  const start=objs.find(o=>o.type==='start');
+  fitAll(objs);
+  if(start){tx=innerWidth/2-(start.x+30)*scale;ty=innerHeight/2-(start.y+30)*scale;applyTransform();}
+}
+
+// ── Load ──
+async function load(){
+  try{
+    const r=await fetch('objects.json?_='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw 0;
+    const{objects=[]}=await r.json();
+    allObjects=objects;
+    objects.forEach(o=>{
+      if(o.type==='text')renderText(o);
+      else if(o.type==='image')renderImage(o);
+      else if(o.type==='line')renderLine(o);
+    });
+    navigateToStart(objects); // navigateToStart calls fitAll which calls applyTransform which calls redrawLines
+  }catch{console.warn('Could not load objects.json');}
+}
+
+applyTheme(); load();
+</script>
+</body>
+</html>
