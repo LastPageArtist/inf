@@ -46,6 +46,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 #canvas-wrap{position:fixed;top:var(--bar-h);left:0;right:var(--panel-w);bottom:0;overflow:hidden;cursor:default;background:var(--bg);user-select:none;transition:background .3s;}
 #canvas-wrap.mode-pan{cursor:grab;}
 #canvas-wrap.mode-pan.panning{cursor:grabbing;}
+#canvas-wrap.mid-panning{cursor:grabbing !important;}
 #canvas-wrap.mode-line{cursor:crosshair;}
 #grid-bg{position:absolute;inset:0;pointer-events:none;}
 #world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;}
@@ -246,10 +247,13 @@ function lineColorForTheme(){ return dark?'rgba(224,219,208,0.82)':'rgba(44,40,3
 function applyTheme(){
   html.setAttribute('data-theme',dark?'dark':'light');
   moonIco.style.display=dark?'none':''; sunIco.style.display=dark?'':'none';
-  svgOverlay.querySelectorAll('.perm-line-group line:first-child').forEach(l=>{
-    const id=l.closest('.perm-line-group')?.getAttribute('data-id');
+  svgOverlay.querySelectorAll('.perm-line-group').forEach(g=>{
+    const id=g.getAttribute('data-id');
     const obj=id?getObj(id):null;
-    if(obj&&!obj.color)l.setAttribute('stroke',lineColorForTheme());
+    if(obj&&!obj.color){
+      const ln=g.querySelector('line:first-child');
+      if(ln)ln.setAttribute('stroke',lineColorForTheme());
+    }
   });
   applyTransform();
 }
@@ -343,25 +347,57 @@ document.addEventListener('keydown',e=>{
 });
 
 // ═══════════════════════════════════════════════
-//  PAN
+//  PAN (tool-based + middle mouse button)
 // ═══════════════════════════════════════════════
 let panState=null;
+let midPanState=null; // for middle-mouse-button panning (works in any mode)
+
+// Tool-based pan (only when pan tool active)
 canvasWrap.addEventListener('mousedown',e=>{
   if(activeTool!=='pan')return;
+  if(e.button!==0)return;
   if(e.target!==canvasWrap&&e.target!==world&&e.target!==gridBg&&e.target!==svgLayer&&!e.target.closest('#svg-layer'))return;
   panState={sx:e.clientX,sy:e.clientY,stx:tx,sty:ty};
   canvasWrap.classList.add('panning');
 });
-window.addEventListener('mousemove',e=>{
-  if(!panState)return;
-  tx=panState.stx+e.clientX-panState.sx; ty=panState.sty+e.clientY-panState.sy;
-  applyTransform();
+
+// Middle mouse button pan — works in ALL modes
+canvasWrap.addEventListener('mousedown',e=>{
+  if(e.button!==1)return; // only middle button
+  e.preventDefault();
+  midPanState={sx:e.clientX,sy:e.clientY,stx:tx,sty:ty};
+  canvasWrap.classList.add('mid-panning');
 });
-window.addEventListener('mouseup',()=>{ panState=null; canvasWrap.classList.remove('panning'); });
+
+window.addEventListener('mousemove',e=>{
+  if(panState){
+    tx=panState.stx+e.clientX-panState.sx; ty=panState.sty+e.clientY-panState.sy;
+    applyTransform();
+  }
+  if(midPanState){
+    tx=midPanState.stx+e.clientX-midPanState.sx; ty=midPanState.sty+e.clientY-midPanState.sy;
+    applyTransform();
+  }
+});
+
+window.addEventListener('mouseup',e=>{
+  if(e.button===1&&midPanState){
+    midPanState=null;
+    canvasWrap.classList.remove('mid-panning');
+  }
+  if(e.button===0&&panState){
+    panState=null;
+    canvasWrap.classList.remove('panning');
+  }
+});
+
+// Prevent context menu on middle click
+canvasWrap.addEventListener('auxclick',e=>{if(e.button===1)e.preventDefault();});
 
 // Click on canvas background — deselect (only in select mode)
 canvasWrap.addEventListener('mousedown',e=>{
   if(activeTool==='pan'||activeTool==='line')return;
+  if(e.button!==0)return;
   if(e.target===canvasWrap||e.target===world||e.target===gridBg||e.target===svgLayer){
     stopEditing();selectObject(null);
   }
@@ -380,17 +416,15 @@ document.getElementById('btn-fit').onclick=fitAll;
 
 // ═══════════════════════════════════════════════
 //  LINE TOOL
-//  Uses canvasWrap mousedown (checking activeTool)
-//  All coordinates converted via screenToWorld using clientX/Y directly
 // ═══════════════════════════════════════════════
 let lineDraw={active:false,startClientX:0,startClientY:0,preview:null};
 
 canvasWrap.addEventListener('mousedown',e=>{
   if(activeTool!=='line')return;
+  if(e.button!==0)return;
   e.preventDefault();
   e.stopPropagation();
 
-  // Create dashed preview line in screen-space overlay
   const r=canvasWrap.getBoundingClientRect();
   const lx=e.clientX-r.left;
   const ly=e.clientY-r.top;
@@ -422,22 +456,19 @@ window.addEventListener('mousemove',e=>{
 
 window.addEventListener('mouseup',e=>{
   if(!lineDraw.active)return;
+  if(e.button!==0)return;
 
   const preview=lineDraw.preview;
   const startCX=lineDraw.startClientX;
   const startCY=lineDraw.startClientY;
 
-  // Reset state immediately
   lineDraw={active:false,startClientX:0,startClientY:0,preview:null};
 
-  // Remove preview
   if(preview)preview.remove();
 
-  // Check minimum drag distance (in screen pixels)
   const dist=Math.hypot(e.clientX-startCX, e.clientY-startCY);
   if(dist<5)return;
 
-  // Convert start and end from client coords → world coords
   const w1=screenToWorld(startCX, startCY);
   const w2=screenToWorld(e.clientX, e.clientY);
 
@@ -445,7 +476,7 @@ window.addEventListener('mouseup',e=>{
     id:createId(), type:'line',
     x1:Math.round(w1.x), y1:Math.round(w1.y),
     x2:Math.round(w2.x), y2:Math.round(w2.y),
-    color:null,  // null = auto (theme-responsive)
+    color:null,
     width:2
   };
   objects.push(obj);
@@ -454,7 +485,7 @@ window.addEventListener('mouseup',e=>{
   setTool('select');
 });
 
-// ─── Lines rendered in svgOverlay (screen space) — avoids overflow:hidden clipping ───
+// ─── Lines rendered in svgOverlay (screen space) ───
 function renderAllLines(){
   svgOverlay.querySelectorAll('.perm-line-group').forEach(g=>g.remove());
   const r=canvasWrap.getBoundingClientRect();
@@ -493,7 +524,7 @@ function buildLineEl(obj){ renderAllLines(); renderLineHandles(); }
 function updateLineEl(obj){ renderAllLines(); renderLineHandles(); }
 function removeLineEl(id){ renderAllLines(); }
 
-// ─── Endpoint handles — drawn in svgOverlay at screen coords ───
+// ─── Endpoint handles ───
 function renderLineHandles(){
   svgOverlay.querySelectorAll('.line-handle-group').forEach(g=>g.remove());
   if(!selectedId)return;
@@ -524,10 +555,8 @@ function renderLineHandles(){
   });
 
   svgOverlay.appendChild(g);
-  // Always allow pointer events on handle groups
   g.style.pointerEvents='all';
-  // Only the overlay itself needs pointer events when handles are present
-  svgOverlay.style.pointerEvents=(activeTool==='line'||activeTool==='select')?'none':'none';
+  svgOverlay.style.pointerEvents='none';
 }
 
 function startDragLine(e,id){
