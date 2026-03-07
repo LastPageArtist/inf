@@ -9,7 +9,7 @@
   --bg:#f5f2ec; --surface:#ede9e0; --text:#2c2820; --text-dim:#8a8278;
   --border:rgba(44,40,32,0.18); --hud-bg:rgba(245,242,236,0.93); --hud-hov:#e2ddd4;
   --f:'Times New Roman',Times,serif;
-  --brand-fs:25px; --brand-top:20px; --brand-left:22px;
+  --brand-fs:17px; --brand-top:20px; --brand-left:22px;
   --tb-h:32px; --tb-pad:4px; --tb-gap:3px; --tb-r:10px;
   --tb-fs:11px; --tb-icon:13px; --tb-bottom:18px;
 }
@@ -66,7 +66,7 @@ body:not(.dev-mobile):not(.dev-tablet).panning{cursor:grabbing;}
 /* Credit sits below the brand, slightly smaller, same style */
 #credit{
   font-family:'Times New Roman',Times,serif;
-  font-size:calc(var(--brand-fs) * 0.60);
+  font-size:calc(var(--brand-fs) * 0.82);
   font-weight:700;
   letter-spacing:.10em;
   text-transform:uppercase;
@@ -164,11 +164,7 @@ function lineColorAuto(){ return dark?'rgba(224,219,208,0.82)':'rgba(44,40,32,0.
 function applyTheme(){
   html.setAttribute('data-theme',dark?'dark':'light');
   moonIco.style.display=dark?'none':''; sunIco.style.display=dark?'':'none';
-  // Update auto-colored SVG lines to match current theme
-  document.querySelectorAll('.viewer-line[data-auto="1"]').forEach(l=>{
-    l.setAttribute('stroke', lineColorAuto());
-  });
-  applyTransform();
+  applyTransform(); // applyTransform calls redrawLines with updated theme colors
 }
 document.getElementById('btn-theme').onclick=()=>{
   dark=!dark; applyTheme();
@@ -188,6 +184,7 @@ function applyTransform(){
   grid.style.backgroundPosition=`${ox}px ${oy}px`;
   const ow=(1/scale).toFixed(6)+'px',oc=dark?'rgba(224,219,208,0.45)':'rgba(44,40,32,0.32)';
   textEls.forEach(el=>{el.style.outline=`${ow} solid ${oc}`;});
+  redrawLines();
 }
 
 // ── Mouse pan ──
@@ -291,49 +288,41 @@ function renderImage(o){
   world.appendChild(img);
 }
 
-// ── Render lines: uses a single SVG inside #world (world-space coords, scales with transform) ──
-function getOrCreateLineSVG(){
-  let svg=document.getElementById('viewer-svg');
-  if(!svg){
-    const NS='http://www.w3.org/2000/svg';
-    svg=document.createElementNS(NS,'svg');
-    svg.id='viewer-svg';
-    svg.setAttribute('xmlns',NS);
-    // Position at top-left of world, overflow:visible so lines draw anywhere
-    svg.style.cssText='position:absolute;top:0;left:0;width:0;height:0;overflow:visible;pointer-events:none;z-index:0;';
-    // Insert as the first child so lines appear behind text and images
-    world.insertBefore(svg,world.firstChild);
-  }
-  return svg;
+// ── Line rendering via full-screen fixed SVG overlay ──
+// Lines stored as world-coords; redrawn in screen-coords on every transform.
+const NS_SVG='http://www.w3.org/2000/svg';
+let lineObjects=[];
+
+const lineSvg=(()=>{
+  const s=document.createElementNS(NS_SVG,'svg');
+  s.id='viewer-line-svg';
+  s.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible;';
+  document.body.appendChild(s);
+  return s;
+})();
+
+function isAutoColor(c){
+  return !c||c==='null'||c===null||
+    (typeof c==='string'&&(c.includes('rgba(44,40,32')||c.includes('rgba(224,219,208')));
 }
 
-function renderLine(o){
-  const NS='http://www.w3.org/2000/svg';
-  const svg=getOrCreateLineSVG();
-  const ln=document.createElementNS(NS,'line');
-  ln.classList.add('viewer-line');
+function w2s(wx,wy){ return{x:wx*scale+tx, y:wy*scale+ty}; }
 
-  // Determine if color is "auto" (theme-responsive):
-  // null, empty, or the editor's default rgba strings → auto
-  const isAuto=!o.color||o.color==='null'||
-    o.color.includes('rgba(44,40,32')||
-    o.color.includes('rgba(224,219,208');
-
-  if(isAuto){
-    ln.dataset.auto='1';
-    ln.setAttribute('stroke', lineColorAuto());
-  } else {
-    ln.setAttribute('stroke', o.color);
-  }
-
-  ln.setAttribute('x1', o.x1);
-  ln.setAttribute('y1', o.y1);
-  ln.setAttribute('x2', o.x2);
-  ln.setAttribute('y2', o.y2);
-  ln.setAttribute('stroke-width', o.width||2);
-  ln.setAttribute('stroke-linecap','round');
-  svg.appendChild(ln);
+function redrawLines(){
+  while(lineSvg.firstChild)lineSvg.removeChild(lineSvg.firstChild);
+  lineObjects.forEach(o=>{
+    const a=w2s(o.x1,o.y1), b=w2s(o.x2,o.y2);
+    const ln=document.createElementNS(NS_SVG,'line');
+    ln.setAttribute('x1',a.x); ln.setAttribute('y1',a.y);
+    ln.setAttribute('x2',b.x); ln.setAttribute('y2',b.y);
+    ln.setAttribute('stroke', isAutoColor(o.color)?lineColorAuto():o.color);
+    ln.setAttribute('stroke-width', o.width||2);
+    ln.setAttribute('stroke-linecap','round');
+    lineSvg.appendChild(ln);
+  });
 }
+
+function renderLine(o){ lineObjects.push(o); }
 
 // ── Navigate to start node ──
 function navigateToStart(objs){
@@ -354,7 +343,7 @@ async function load(){
       else if(o.type==='image')renderImage(o);
       else if(o.type==='line')renderLine(o);
     });
-    navigateToStart(objects);
+    navigateToStart(objects); // navigateToStart calls fitAll which calls applyTransform which calls redrawLines
   }catch{console.warn('Could not load objects.json');}
 }
 
