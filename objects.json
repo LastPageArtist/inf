@@ -3,31 +3,40 @@
     {
       "type": "image",
       "id": "obj-1",
-      "x": 474,
-      "y": 26,
-      "width": 627,
-      "height": 308,
-      "src": "photo.png"
+      "x": 106,
+      "y": 19,
+      "width": 400,
+      "height": 225,
+      "src": "frame1.png"
     },
     {
       "type": "text",
       "id": "obj-2",
-      "x": 212,
-      "y": 59,
-      "width": 222,
+      "x": 520,
+      "y": 27,
+      "width": 220,
       "height": 80,
-      "fontSize": 14,
-      "content": "How do the mountains move you senora ?"
+      "fontSize": 16,
+      "content": "Frame 1"
+    },
+    {
+      "type": "image",
+      "id": "obj-3",
+      "x": 107,
+      "y": 282,
+      "width": 400,
+      "height": 225,
+      "src": "frame2.png"
     },
     {
       "type": "text",
-      "id": "obj-3",
-      "x": 1128,
-      "y": 233,
+      "id": "obj-4",
+      "x": 527,
+      "y": 294,
       "width": 220,
       "height": 80,
-      "fontSize": 14,
-      "content": "How does the stream flow so seamlessly ?"
+      "fontSize": 16,
+      "content": "Frame 2"
     }
   ]
 }
