@@ -1,19 +1,29 @@
 {
   "objects": [
     {
-      "type": "image",
+      "type": "line",
       "id": "obj-1",
-      "x": 106,
-      "y": 19,
+      "x1": 88,
+      "y1": 85,
+      "x2": 331,
+      "y2": 273,
+      "color": null,
+      "width": 2
+    },
+    {
+      "type": "image",
+      "id": "obj-2",
+      "x": 332,
+      "y": 208,
       "width": 400,
       "height": 225,
       "src": "frame1.png"
     },
     {
       "type": "text",
-      "id": "obj-2",
-      "x": 520,
-      "y": 27,
+      "id": "obj-3",
+      "x": -137,
+      "y": 43,
       "width": 220,
       "height": 80,
       "fontSize": 16,
@@ -21,22 +31,38 @@
     },
     {
       "type": "image",
-      "id": "obj-3",
-      "x": 107,
-      "y": 282,
+      "id": "obj-4",
+      "x": 855,
+      "y": 209,
       "width": 400,
       "height": 225,
       "src": "frame2.png"
     },
     {
+      "type": "line",
+      "id": "obj-5",
+      "x1": 1255,
+      "y1": 292,
+      "x2": 1536,
+      "y2": 264,
+      "color": null,
+      "width": 2
+    },
+    {
       "type": "text",
-      "id": "obj-4",
-      "x": 527,
-      "y": 294,
+      "id": "obj-6",
+      "x": 1550,
+      "y": 233,
       "width": 220,
       "height": 80,
       "fontSize": 16,
       "content": "Frame 2"
+    },
+    {
+      "type": "start",
+      "id": "obj-7",
+      "x": 769,
+      "y": 325
     }
   ]
 }
