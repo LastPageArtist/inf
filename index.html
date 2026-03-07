@@ -5,7 +5,16 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Cavonasa</title>
 <style>
+/* ── Intro timing config (edit these) ── */
 :root {
+  --intro-delay-before-sentence: 1.8s;   /* blank screen pause */
+  --intro-sentence-fade-in: 0.9s;        /* full sentence fades in */
+  --intro-sentence-hold: 2.4s;           /* hold full sentence */
+  --intro-words-fade-out: 0.7s;          /* non-Ruleman words fade out */
+  --intro-ruleman-hold: 2.0s;            /* hold just "The Ruleman" */
+  --intro-ruleman-fade-out: 0.9s;        /* "The Ruleman" fades out */
+  --intro-content-fade-in: 1.4s;         /* everything fades in */
+
   --bg:#f5f2ec; --surface:#ede9e0; --text:#2c2820; --text-dim:#8a8278;
   --border:rgba(44,40,32,0.18); --hud-bg:rgba(245,242,236,0.93); --hud-hov:#e2ddd4;
   --f:'Times New Roman',Times,serif;
@@ -26,8 +35,56 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 body:not(.dev-mobile):not(.dev-tablet){cursor:grab;}
 body:not(.dev-mobile):not(.dev-tablet).panning{cursor:grabbing;}
 
+/* ── INTRO OVERLAY ── */
+#intro-overlay {
+  position:fixed;inset:0;z-index:1000;
+  background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:all;
+  transition:background .3s;
+}
+#intro-overlay.gone { display:none; }
+
+/* The sentence container — always one line, font scales to fit */
+#intro-sentence {
+  font-family:'Times New Roman',Times,serif;
+  font-size:20px; /* JS will override this */
+  color:var(--text);
+  letter-spacing:.04em;
+  line-height:1.5;
+  text-align:center;
+  white-space:nowrap;   /* NEVER wrap */
+  opacity:0;
+  /* no max-width — JS keeps it within viewport */
+}
+
+/* individual word spans */
+#intro-sentence .iw {
+  display:inline;
+  transition:opacity 0.5s ease;
+  white-space:nowrap;
+}
+#intro-sentence .iw-ruleman {
+  display:inline;
+  font-weight:700;
+  letter-spacing:.08em;
+  white-space:nowrap;
+}
+
+/* ── Grid & world ── */
 #grid-bg{position:fixed;inset:0;pointer-events:none;z-index:0;}
 #world  {position:absolute;top:0;left:0;transform-origin:0 0;z-index:1;will-change:transform;}
+
+/* The main UI wrapper fades in after intro */
+#ui-wrap {
+  opacity:0;
+  transition:opacity var(--intro-content-fade-in) ease;
+  pointer-events:none;
+}
+#ui-wrap.visible {
+  opacity:1;
+  pointer-events:all;
+}
 
 .c-text{
   position:absolute;outline:1px solid rgba(44,40,32,0.28);border:none;
@@ -41,41 +98,20 @@ body:not(.dev-mobile):not(.dev-tablet).panning{cursor:grabbing;}
 .c-image{position:absolute;display:block;object-fit:cover;pointer-events:none;}
 .img-missing{position:absolute;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border);background:rgba(0,0,0,.02);color:var(--text-dim);font-size:12px;font-family:var(--f);pointer-events:none;}
 
-/* ── Brand + credit stacked top-left ── */
+/* ── Brand + credit ── */
 #brand-wrap{
-  position:fixed;
-  top:var(--brand-top);
-  left:var(--brand-left);
-  z-index:100;
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-  pointer-events:none;
+  position:fixed;top:var(--brand-top);left:var(--brand-left);z-index:100;
+  display:flex;flex-direction:column;gap:3px;pointer-events:none;
 }
 #brand{
-  font-family:'Times New Roman',Times,serif;
-  font-size:var(--brand-fs);
-  font-weight:700;
-  letter-spacing:.10em;
-  text-transform:uppercase;
-  color:var(--text);
-  opacity:.65;
-  transition:color .3s,font-size .2s;
-  line-height:1;
+  font-family:'Times New Roman',Times,serif;font-size:var(--brand-fs);font-weight:700;
+  letter-spacing:.10em;text-transform:uppercase;color:var(--text);opacity:.65;
+  transition:color .3s,font-size .2s;line-height:1;
 }
-/* Credit sits below the brand, slightly smaller, same style */
 #credit{
-  font-family:'Times New Roman',Times,serif;
-  font-size:calc(var(--brand-fs) * 0.82);
-  font-weight:700;
-  letter-spacing:.10em;
-  text-transform:uppercase;
-  color:var(--text);
-  opacity:.65;
-  text-decoration:none;
-  pointer-events:all;
-  transition:color .3s,font-size .2s,opacity .2s;
-  line-height:1;
+  font-family:'Times New Roman',Times,serif;font-size:calc(var(--brand-fs) * 0.82);font-weight:700;
+  letter-spacing:.10em;text-transform:uppercase;color:var(--text);opacity:.65;
+  text-decoration:none;pointer-events:all;transition:color .3s,font-size .2s,opacity .2s;line-height:1;
 }
 #credit:hover{opacity:0.9;}
 
@@ -101,46 +137,135 @@ body:not(.dev-mobile):not(.dev-tablet).panning{cursor:grabbing;}
 .tb-btn svg{width:var(--tb-icon);height:var(--tb-icon);flex-shrink:0;}
 #zoom-label{font-family:var(--f);font-size:var(--tb-fs);letter-spacing:.04em;color:var(--text-dim);min-width:34px;text-align:center;transition:color .3s;pointer-events:none;}
 body.dev-mobile #zoom-label{display:none;}
+
+/* ── Hint tooltip (arrow + text) ── */
+.hint-wrap {
+  position:fixed;
+  z-index:500;
+  pointer-events:none;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:2px;
+  opacity:0;
+  transition:opacity 0.5s ease;
+}
+.hint-wrap.visible { opacity:1; }
+.hint-wrap.fading  { opacity:0; }
+
+.hint-text {
+  font-family:'Times New Roman',Times,serif;
+  font-size:clamp(10px,1.8vw,12px);
+  color:var(--text);
+  opacity:0.68;
+  letter-spacing:.02em;
+  line-height:1.35;
+  max-width:140px;
+  text-align:center;
+  transition:color .3s;
+}
+
+.hint-arrow svg {
+  width:clamp(20px,3.5vw,28px);
+  height:auto;
+  color:var(--text);
+  opacity:0.5;
+  transition:color .3s;
+  display:block;
+}
 </style>
 </head>
 <body>
-<div id="grid-bg"></div>
-<div id="world"></div>
 
-<!-- Brand + credit stacked in top-left -->
-<div id="brand-wrap">
-  <div id="brand">Cavonasa</div>
-  <a id="credit" href="https://example.com" target="_blank" rel="noopener">@example</a>
+<!-- ─── INTRO OVERLAY ─── -->
+<div id="intro-overlay">
+  <p id="intro-sentence">
+    <span class="iw" id="iw-pre">In desperate times of war, the protector of his people is not the king, but&nbsp;</span><span class="iw iw-ruleman" id="iw-ruleman">The Ruleman.</span>
+  </p>
 </div>
 
-<div id="toolbar">
-  <button class="tb-btn" id="btn-out" title="Zoom out">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
-  </button>
-  <span id="zoom-label">100%</span>
-  <button class="tb-btn" id="btn-in" title="Zoom in">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="7" y1="4" x2="7" y2="10"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
-  </button>
-  <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-fit" title="Fit all content">
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/><rect x="5" y="5" width="6" height="6" rx="0.5"/></svg>
-  </button>
-  <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-sound" title="Play music">
-    <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-    <svg id="icon-playing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-  </button>
-  <div class="tb-sep"></div>
-  <button class="tb-btn" id="btn-theme" title="Toggle theme">
-    <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-    <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-  </button>
-</div>
+<!-- ─── MAIN UI (fades in after intro) ─── -->
+<div id="ui-wrap">
+  <div id="grid-bg"></div>
+  <div id="world"></div>
+
+  <div id="brand-wrap">
+    <div id="brand">Cavonasa</div>
+    <a id="credit" href="https://example.com" target="_blank" rel="noopener">@example</a>
+  </div>
+
+  <div id="toolbar">
+    <button class="tb-btn" id="btn-out" title="Zoom out">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
+    </button>
+    <span id="zoom-label">100%</span>
+    <button class="tb-btn" id="btn-in" title="Zoom in">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/><line x1="7" y1="4" x2="7" y2="10"/><line x1="4" y1="7" x2="10" y2="7"/></svg>
+    </button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-fit" title="Fit all content">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/><rect x="5" y="5" width="6" height="6" rx="0.5"/></svg>
+    </button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-sound" title="Play music">
+      <svg id="icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+      <svg id="icon-playing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+    </button>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="btn-theme" title="Toggle theme">
+      <svg id="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg id="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </button>
+  </div>
+
+  <!-- Sound hint -->
+  <div class="hint-wrap" id="hint-sound">
+    <div class="hint-text">Turn on music for the best experience</div>
+    <div class="hint-arrow">
+      <!-- starts top-left, bends right, then goes straight down with arrowhead -->
+      <svg viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 4 L6 14 Q6 20 13 20 L20 20 L20 32"/>
+        <polyline points="14,27 20,34 26,27"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Theme hint -->
+  <div class="hint-wrap" id="hint-theme">
+    <div class="hint-text">Switch between light &amp; dark themes</div>
+    <div class="hint-arrow">
+      <!-- mirror: starts top-right, bends left, then goes straight down with arrowhead -->
+      <svg viewBox="0 0 32 40" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M26 4 L26 14 Q26 20 19 20 L12 20 L12 32"/>
+        <polyline points="6,27 12,34 18,27"/>
+      </svg>
+    </div>
+  </div>
+</div><!-- /ui-wrap -->
 
 <audio id="bg-music" src="Hill_of_the_king.mp3" loop preload="auto"></audio>
 
 <script>
-// ── Device detection ──
+// ══════════════════════════════════════════════
+//  TIMING CONFIG (seconds) — edit these freely
+// ══════════════════════════════════════════════
+const T = {
+  blankPause:         1.8,   // blank screen before sentence appears
+  sentenceFadeIn:     0.9,   // duration: fade in full sentence
+  sentenceHold:       2.4,   // hold full sentence
+  wordsFadeOut:       0.7,   // duration: non-Ruleman words fade out
+  rulemanHold:        2.0,   // hold just "The Ruleman"
+  rulemanFadeOut:     0.9,   // duration: "The Ruleman" fades out
+  contentFadeIn:      1.4,   // duration: main UI fades in
+  hintSoundShow:      1.2,   // delay after UI appears before sound hint
+  hintSoundDuration:  4.5,   // how long sound hint stays visible
+  hintThemeDelay:     1.5,   // delay after sound hint gone before theme hint
+  hintThemeDuration:  4.0,   // how long theme hint stays visible
+};
+
+// ══════════════════════════════════════════════
+//  DEVICE DETECTION
+// ══════════════════════════════════════════════
 function detectDevice(){
   const w=window.innerWidth,ua=navigator.userAgent,touch=navigator.maxTouchPoints>0;
   const isTV=/SmartTV|SMART-TV|Tizen|WebOS|HbbTV|BRAVIA|PhilipsTV/i.test(ua);
@@ -148,23 +273,35 @@ function detectDevice(){
   document.body.classList.remove('dev-mobile','dev-tablet','dev-desktop','dev-tv');
   document.body.classList.add(cls);
 }
-detectDevice(); window.addEventListener('resize',detectDevice);
+detectDevice(); window.addEventListener('resize',()=>{ detectDevice(); positionHints(); });
 
+// ══════════════════════════════════════════════
+//  CORE VARS
+// ══════════════════════════════════════════════
 const MIN=0.04,MAX=8,STEP=0.15,BASE=28;
 let tx=0,ty=0,scale=1,dark=false,allObjects=[];
 let textEls=[];
 
-const html=document.documentElement,world=document.getElementById('world'),
-      label=document.getElementById('zoom-label'),grid=document.getElementById('grid-bg'),
-      moonIco=document.getElementById('icon-moon'),sunIco=document.getElementById('icon-sun');
+const html=document.documentElement,
+      world=document.getElementById('world'),
+      label=document.getElementById('zoom-label'),
+      grid=document.getElementById('grid-bg'),
+      moonIco=document.getElementById('icon-moon'),
+      sunIco=document.getElementById('icon-sun'),
+      uiWrap=document.getElementById('ui-wrap');
 
-// ── Theme ──
+// ══════════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════════
 function lineColorAuto(){ return dark?'rgba(224,219,208,0.82)':'rgba(44,40,32,0.75)'; }
 
 function applyTheme(){
   html.setAttribute('data-theme',dark?'dark':'light');
   moonIco.style.display=dark?'none':''; sunIco.style.display=dark?'':'none';
-  applyTransform(); // applyTransform calls redrawLines with updated theme colors
+  // also update intro overlay bg instantly
+  const ov=document.getElementById('intro-overlay');
+  if(ov) ov.style.background=dark?'#1c1b18':'#f5f2ec';
+  applyTransform();
 }
 document.getElementById('btn-theme').onclick=()=>{
   dark=!dark; applyTheme();
@@ -172,7 +309,9 @@ document.getElementById('btn-theme').onclick=()=>{
 };
 try{ dark=localStorage.getItem('cv-theme')==='dark'; }catch{ dark=false; }
 
-// ── Transform ──
+// ══════════════════════════════════════════════
+//  TRANSFORM
+// ══════════════════════════════════════════════
 function applyTransform(){
   world.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;
   label.textContent=Math.round(scale*100)+'%';
@@ -187,21 +326,24 @@ function applyTransform(){
   redrawLines();
 }
 
-// ── Mouse pan ──
+// ══════════════════════════════════════════════
+//  PAN / PINCH / WHEEL
+// ══════════════════════════════════════════════
 let pan=false,msx,msy,stx,sty;
 document.addEventListener('mousedown',e=>{
   if(e.target.closest('#toolbar')||e.target.closest('#brand-wrap'))return;
+  if(document.getElementById('intro-overlay')&&!document.getElementById('intro-overlay').classList.contains('gone'))return;
   pan=true;msx=e.clientX;msy=e.clientY;stx=tx;sty=ty;document.body.classList.add('panning');
 });
 document.addEventListener('mousemove',e=>{if(!pan)return;tx=stx+e.clientX-msx;ty=sty+e.clientY-msy;applyTransform();});
 document.addEventListener('mouseup',()=>{pan=false;document.body.classList.remove('panning');});
 
-// ── Touch pan + pinch ──
 let touches={},lastMid=null,lastSpread=0;
 function midPt(t){const p=Object.values(t);return{x:p.reduce((s,v)=>s+v.x,0)/p.length,y:p.reduce((s,v)=>s+v.y,0)/p.length};}
 function sprd(t){const p=Object.values(t);return p.length<2?0:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y);}
 document.addEventListener('touchstart',e=>{
   if(e.target.closest('#toolbar')||e.target.closest('#brand-wrap'))return;
+  if(document.getElementById('intro-overlay')&&!document.getElementById('intro-overlay').classList.contains('gone'))return;
   e.preventDefault();
   [...e.changedTouches].forEach(t=>{touches[t.identifier]={x:t.clientX,y:t.clientY};});
   lastMid=midPt(touches);lastSpread=sprd(touches);
@@ -219,7 +361,6 @@ document.addEventListener('touchend',e=>{
   lastMid=Object.keys(touches).length?midPt(touches):null;lastSpread=sprd(touches);
 },{passive:false});
 
-// ── Wheel zoom ──
 document.addEventListener('wheel',e=>{
   e.preventDefault();
   let dy=e.deltaY;if(e.deltaMode===1)dy*=20;if(e.deltaMode===2)dy*=300;
@@ -229,7 +370,9 @@ function zoomTo(ns,cx,cy){ns=Math.min(MAX,Math.max(MIN,ns));tx=cx-(cx-tx)*(ns/sc
 document.getElementById('btn-in').onclick=()=>zoomTo(scale*(1+STEP),innerWidth/2,innerHeight/2);
 document.getElementById('btn-out').onclick=()=>zoomTo(scale*(1-STEP),innerWidth/2,innerHeight/2);
 
-// ── Fit ──
+// ══════════════════════════════════════════════
+//  FIT
+// ══════════════════════════════════════════════
 function fitAll(objs){
   const all=objs||allObjects;
   const boxes=all.filter(o=>o.type!=='start'&&o.type!=='line');
@@ -244,33 +387,24 @@ function fitAll(objs){
 }
 document.getElementById('btn-fit').onclick=()=>fitAll();
 
-// ── Music ──
+// ══════════════════════════════════════════════
+//  MUSIC
+// ══════════════════════════════════════════════
 const music=document.getElementById('bg-music');
 const mutedIco=document.getElementById('icon-muted'),playingIco=document.getElementById('icon-playing');
 let musicOn=false,musicUnlocked=false;
-
-function setMusicUI(on){
-  musicOn=on;
-  mutedIco.style.display=on?'none':''; playingIco.style.display=on?'':'none';
-}
-function playMusic(){
-  music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{setMusicUI(false);});
-}
+function setMusicUI(on){musicOn=on;mutedIco.style.display=on?'none':'';playingIco.style.display=on?'':'none';}
+function playMusic(){music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{setMusicUI(false);});}
 function pauseMusic(){music.pause();setMusicUI(false);}
-
-function tryAutoplay(){
-  if(musicUnlocked||musicOn)return;
-  music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{});
-}
+function tryAutoplay(){if(musicUnlocked||musicOn)return;music.play().then(()=>{musicUnlocked=true;setMusicUI(true);}).catch(()=>{});}
 document.addEventListener('click',tryAutoplay,{once:true});
 document.addEventListener('keydown',tryAutoplay,{once:true});
 document.addEventListener('touchstart',tryAutoplay,{once:true,passive:true});
+document.getElementById('btn-sound').onclick=()=>{if(musicOn){pauseMusic();}else{playMusic();}};
 
-document.getElementById('btn-sound').onclick=()=>{
-  if(musicOn){pauseMusic();}else{playMusic();}
-};
-
-// ── Render ──
+// ══════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════
 function renderText(o){
   const el=document.createElement('div');el.className='c-text';
   el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.width||200)+'px';
@@ -288,50 +422,105 @@ function renderImage(o){
   world.appendChild(img);
 }
 
-// ── Line rendering via full-screen fixed SVG overlay ──
-// Lines stored as world-coords; redrawn in screen-coords on every transform.
+// ── Lines ──
 const NS_SVG='http://www.w3.org/2000/svg';
 let lineObjects=[];
-
 const lineSvg=(()=>{
   const s=document.createElementNS(NS_SVG,'svg');
   s.id='viewer-line-svg';
   s.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;overflow:visible;';
-  document.body.appendChild(s);
+  document.getElementById('ui-wrap').appendChild(s);
   return s;
 })();
-
-function isAutoColor(c){
-  return !c||c==='null'||c===null||
-    (typeof c==='string'&&(c.includes('rgba(44,40,32')||c.includes('rgba(224,219,208')));
-}
-
-function w2s(wx,wy){ return{x:wx*scale+tx, y:wy*scale+ty}; }
-
+function isAutoColor(c){return !c||c==='null'||c===null||(typeof c==='string'&&(c.includes('rgba(44,40,32')||c.includes('rgba(224,219,208')));}
+function w2s(wx,wy){return{x:wx*scale+tx,y:wy*scale+ty};}
 function redrawLines(){
   while(lineSvg.firstChild)lineSvg.removeChild(lineSvg.firstChild);
   lineObjects.forEach(o=>{
-    const a=w2s(o.x1,o.y1), b=w2s(o.x2,o.y2);
+    const a=w2s(o.x1,o.y1),b=w2s(o.x2,o.y2);
     const ln=document.createElementNS(NS_SVG,'line');
-    ln.setAttribute('x1',a.x); ln.setAttribute('y1',a.y);
-    ln.setAttribute('x2',b.x); ln.setAttribute('y2',b.y);
-    ln.setAttribute('stroke', isAutoColor(o.color)?lineColorAuto():o.color);
-    ln.setAttribute('stroke-width', o.width||2);
+    ln.setAttribute('x1',a.x);ln.setAttribute('y1',a.y);
+    ln.setAttribute('x2',b.x);ln.setAttribute('y2',b.y);
+    ln.setAttribute('stroke',isAutoColor(o.color)?lineColorAuto():o.color);
+    ln.setAttribute('stroke-width',o.width||2);
     ln.setAttribute('stroke-linecap','round');
     lineSvg.appendChild(ln);
   });
 }
+function renderLine(o){lineObjects.push(o);}
 
-function renderLine(o){ lineObjects.push(o); }
+// ══════════════════════════════════════════════
+//  HINT POSITIONING
+// ══════════════════════════════════════════════
+function positionHints(){
+  const soundBtn=document.getElementById('btn-sound');
+  const themeBtn=document.getElementById('btn-theme');
+  const hintSound=document.getElementById('hint-sound');
+  const hintTheme=document.getElementById('hint-theme');
 
-// ── Navigate to start node ──
+  if(!soundBtn||!themeBtn)return;
+
+  const sr=soundBtn.getBoundingClientRect();
+  const tr=themeBtn.getBoundingClientRect();
+
+  // Position sound hint: centred above the sound button
+  const hintSoundW=hintSound.offsetWidth||120;
+  hintSound.style.left=(sr.left + sr.width/2 - hintSoundW/2)+'px';
+  hintSound.style.bottom=(window.innerHeight - sr.top + 8)+'px';
+  hintSound.style.top='';
+
+  // Position theme hint: centred above the theme button
+  const hintThemeW=hintTheme.offsetWidth||120;
+  hintTheme.style.left=(tr.left + tr.width/2 - hintThemeW/2)+'px';
+  hintTheme.style.bottom=(window.innerHeight - tr.top + 8)+'px';
+  hintTheme.style.top='';
+}
+
+// ══════════════════════════════════════════════
+//  HINT SEQUENCE
+// ══════════════════════════════════════════════
+function runHints(){
+  const hintSound=document.getElementById('hint-sound');
+  const hintTheme=document.getElementById('hint-theme');
+  positionHints();
+
+  // Show sound hint
+  setTimeout(()=>{
+    positionHints();
+    hintSound.classList.add('visible');
+
+    // Fade out sound hint, then show theme hint
+    setTimeout(()=>{
+      hintSound.classList.remove('visible');
+      hintSound.classList.add('fading');
+
+      setTimeout(()=>{
+        hintSound.style.display='none';
+        positionHints();
+        hintTheme.classList.add('visible');
+
+        // Fade out theme hint
+        setTimeout(()=>{
+          hintTheme.classList.remove('visible');
+          hintTheme.classList.add('fading');
+          setTimeout(()=>{ hintTheme.style.display='none'; }, 600);
+        }, T.hintThemeDuration * 1000);
+
+      }, T.hintThemeDelay * 1000);
+    }, T.hintSoundDuration * 1000);
+
+  }, T.hintSoundShow * 1000);
+}
+
+// ══════════════════════════════════════════════
+//  NAVIGATE / LOAD
+// ══════════════════════════════════════════════
 function navigateToStart(objs){
-  const start=objs.find(o=>o.type==='start');
   fitAll(objs);
+  const start=objs.find(o=>o.type==='start');
   if(start){tx=innerWidth/2-(start.x+30)*scale;ty=innerHeight/2-(start.y+30)*scale;applyTransform();}
 }
 
-// ── Load ──
 async function load(){
   try{
     const r=await fetch('objects.json?_='+Date.now(),{cache:'no-store'});
@@ -343,11 +532,105 @@ async function load(){
       else if(o.type==='image')renderImage(o);
       else if(o.type==='line')renderLine(o);
     });
-    navigateToStart(objects); // navigateToStart calls fitAll which calls applyTransform which calls redrawLines
+    navigateToStart(objects);
   }catch{console.warn('Could not load objects.json');}
 }
 
-applyTheme(); load();
+// ══════════════════════════════════════════════
+//  FIT SENTENCE TO ONE LINE
+// ══════════════════════════════════════════════
+function fitSentenceFont(){
+  const sentence = document.getElementById('intro-sentence');
+  if(!sentence) return;
+  const maxW = window.innerWidth * 0.90; // 90vw max usable width
+  const maxSize = 36;
+  const minSize = 7;
+  // Binary search for the largest font size that keeps it one line
+  let lo = minSize, hi = maxSize;
+  sentence.style.fontSize = hi + 'px';
+  while(hi - lo > 0.5){
+    const mid = (lo + hi) / 2;
+    sentence.style.fontSize = mid + 'px';
+    if(sentence.scrollWidth <= maxW){ lo = mid; } else { hi = mid; }
+  }
+  sentence.style.fontSize = lo + 'px';
+}
+window.addEventListener('resize', fitSentenceFont);
+
+// ══════════════════════════════════════════════
+//  INTRO SEQUENCE
+// ══════════════════════════════════════════════
+function startIntro(){
+  const overlay = document.getElementById('intro-overlay');
+  const sentence = document.getElementById('intro-sentence');
+  const iwPre    = document.getElementById('iw-pre');
+  const iwRuleman= document.getElementById('iw-ruleman');
+
+  // Step 1: blank pause, then fade in full sentence
+  const t0 = T.blankPause * 1000;
+  const tFadeIn = T.sentenceFadeIn * 1000;
+  const tHold   = T.sentenceHold * 1000;
+  const tFadeOut= T.wordsFadeOut * 1000;
+  const tRuleHold= T.rulemanHold * 1000;
+  const tRuleFade= T.rulemanFadeOut * 1000;
+  const tContentFade= T.contentFadeIn * 1000;
+
+  // set transition on the sentence element
+  sentence.style.transition = `opacity ${T.sentenceFadeIn}s ease`;
+
+  setTimeout(()=>{
+    // Fit to one line, then fade in
+    fitSentenceFont();
+    // Fade in full sentence
+    sentence.style.opacity = '1';
+
+    // Step 2: hold sentence, then fade out non-ruleman part
+    setTimeout(()=>{
+      iwPre.style.transition = `opacity ${T.wordsFadeOut}s ease`;
+      iwPre.style.opacity = '0';
+
+      // Step 3: hold just The Ruleman
+      setTimeout(()=>{
+        // Step 4: fade out The Ruleman
+        iwRuleman.style.transition = `opacity ${T.rulemanFadeOut}s ease`;
+        iwRuleman.style.opacity = '0';
+
+        // Step 5: hide overlay, fade in content
+        setTimeout(()=>{
+          overlay.classList.add('gone');
+
+          // Apply theme properly now
+          applyTheme();
+
+          // Fade in UI
+          uiWrap.style.transition = `opacity ${T.contentFadeIn}s ease`;
+          uiWrap.classList.add('visible');
+
+          // Load content (already fetched, just triggers render if not done)
+          setTimeout(()=>{
+            runHints();
+          }, tContentFade);
+
+        }, tRuleFade);
+
+      }, tFadeOut + tRuleHold);
+
+    }, tHold);
+
+  }, t0);
+}
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+// Apply theme first (so overlay bg matches)
+applyTheme();
+
+// Kick off load immediately (loads in background during intro)
+load();
+
+// Start intro
+startIntro();
 </script>
 </body>
 </html>
